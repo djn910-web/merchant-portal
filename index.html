@@ -1,91 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Merchant Redemption</title>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<style>
-body { font-family: Arial; background:#f5f7fb; padding:40px; }
-
-.card {
-  max-width:500px;
-  margin:auto;
-  background:white;
-  padding:25px;
-  border-radius:14px;
-  box-shadow:0 10px 30px rgba(0,0,0,0.08);
-}
-
-input, select {
-  width:100%;
-  padding:12px;
-  margin-top:8px;
-  border-radius:8px;
-  border:1px solid #ddd;
-}
-
-button {
-  width:100%;
-  padding:14px;
-  margin-top:20px;
-  border:none;
-  border-radius:10px;
-  background:black;
-  color:white;
-  font-weight:bold;
-  cursor:pointer;
-}
-
-.result {
-  margin-top:15px;
-  padding:12px;
-  border-radius:10px;
-  display:none;
-}
-
-.success { background:#e8f8ee; color:#046b3a; }
-.error { background:#ffe5e5; color:#a30000; }
-
-.logout { background:#eee; color:#000; }
-
-</style>
-</head>
-
-<body>
-
-<div class="card">
-
-<h2>Merchant Redemption</h2>
-
-<button class="logout" id="logoutBtn">Logout</button>
-
-<label>Member Number</label>
-<input id="memberNumber">
-
-<label>Original Bill (€)</label>
-<input id="original" type="number">
-
-<label>Discount Type</label>
-<select id="discountType">
-  <option value="eur">€ Amount</option>
-  <option value="percent">% Percentage</option>
-</select>
-
-<label>Discount Value</label>
-<input id="discountValue" type="number">
-
-<label>Final Bill</label>
-<input id="final" type="number" disabled>
-
-<button id="submitBtn">Submit Redemption</button>
-
-<div id="result" class="result"></div>
-
-</div>
-
 <script>
 
 const SUPABASE_URL = "https://wyzwjfaiggymxfjkrfuq.supabase.co";
@@ -96,14 +8,21 @@ const supabaseClient = window.supabase.createClient(
   SUPABASE_ANON_KEY
 );
 
-/* SESSION + MERCHANT CHECK */
+/* ================= SESSION + MERCHANT CHECK ================= */
 
 let MERCHANT_ID = null;
 let sessionReady = false;
 
 async function requireMerchantSession() {
 
+  console.log("Checking session...");
+
+  // Wait for Supabase to restore session from storage
+  await new Promise(resolve => setTimeout(resolve, 300));
+
   const { data: { session } } = await supabaseClient.auth.getSession();
+
+  console.log("Session:", session);
 
   if (!session) {
     window.location.href = "./login.html";
@@ -112,14 +31,18 @@ async function requireMerchantSession() {
 
   const userId = session.user.id;
 
-  const { data: merchant } = await supabaseClient
+  console.log("Looking up merchant for user:", userId);
+
+  const { data: merchant, error } = await supabaseClient
     .from("merchants")
     .select("id")
     .eq("auth_user_id", userId)
-    .single();
+    .maybeSingle();   // SAFER than single()
+
+  console.log("Merchant lookup result:", merchant, error);
 
   if (!merchant) {
-    alert("Merchant not linked");
+    alert("Merchant not linked to this login");
     await supabaseClient.auth.signOut();
     window.location.href = "./login.html";
     return;
@@ -127,11 +50,19 @@ async function requireMerchantSession() {
 
   MERCHANT_ID = merchant.id;
   sessionReady = true;
+
+  console.log("Merchant session ready:", MERCHANT_ID);
 }
 
 requireMerchantSession();
 
-/* AUTO LOGOUT AFTER 5 MIN IDLE */
+/* Listen for auth state changes (extra safety) */
+
+supabaseClient.auth.onAuthStateChange((event, session) => {
+  console.log("Auth state changed:", event);
+});
+
+/* ================= AUTO LOGOUT AFTER 5 MIN IDLE ================= */
 
 let idleTimer;
 
@@ -150,14 +81,14 @@ function resetIdleTimer() {
 
 resetIdleTimer();
 
-/* LOGOUT BUTTON */
+/* ================= LOGOUT BUTTON ================= */
 
 document.getElementById("logoutBtn").addEventListener("click", async () => {
   await supabaseClient.auth.signOut();
   window.location.href = "./login.html";
 });
 
-/* BILL CALC */
+/* ================= BILL CALC ================= */
 
 function calculateFinal() {
 
@@ -184,14 +115,14 @@ document.getElementById("original").addEventListener("input", calculateFinal);
 document.getElementById("discountValue").addEventListener("input", calculateFinal);
 document.getElementById("discountType").addEventListener("change", calculateFinal);
 
-/* SUBMIT LOCK */
+/* ================= SUBMIT LOCK ================= */
 
 let submitting = false;
 
 document.getElementById("submitBtn").addEventListener("click", async () => {
 
 if (submitting) return;
-if (!sessionReady) return alert("Session loading...");
+if (!sessionReady) return alert("Session still loading...");
 
 submitting = true;
 
@@ -216,7 +147,7 @@ const { data: member } = await supabaseClient
 .from("members")
 .select("id")
 .eq("member_number", memberNumber)
-.single();
+.maybeSingle();
 
 if (!member) throw new Error("Member not found");
 
@@ -246,6 +177,3 @@ submitting = false;
 });
 
 </script>
-
-</body>
-</html>
