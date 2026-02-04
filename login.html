@@ -14,8 +14,8 @@ input { width:100%; padding:12px; margin-top:10px; border-radius:8px; border:1px
 button { width:100%; padding:14px; margin-top:16px; border:none; border-radius:10px; background:#000; color:#fff; font-weight:bold; cursor:pointer; }
 .msg { margin-top:12px; font-size:14px; }
 </style>
-
 </head>
+
 <body>
 
 <div class="card">
@@ -30,7 +30,7 @@ button { width:100%; padding:14px; margin-top:16px; border:none; border-radius:1
 
 const SUPABASE_URL = "https://wyzwjfaiggymxfjkrfuq.supabase.co";
 
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5endqZmFpZ2d5bXhmamtyZnVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDc2MTIsImV4cCI6MjA4NTc4MzYxMn0.oPzAaijIIKls2fUYqPk3cvkegSPN8Iu9h8xnnZkg1JE";
+const SUPABASE_ANON_KEY = "PASTE_YOUR_KEY_HERE";
 
 const supabaseClient = window.supabase.createClient(
   SUPABASE_URL,
@@ -39,20 +39,26 @@ const supabaseClient = window.supabase.createClient(
 
 const msg = document.getElementById("msg");
 
+let loggingIn = false;
+
 document.getElementById("loginBtn").addEventListener("click", async () => {
+
+  if (loggingIn) return;
+  loggingIn = true;
 
   msg.textContent = "Signing in...";
 
   const email = document.getElementById("email").value.trim();
   const password = document.getElementById("password").value;
 
-  const { data, error } = await supabaseClient.auth.signInWithPassword({
+  const { error } = await supabaseClient.auth.signInWithPassword({
     email,
     password
   });
 
   if (error) {
     msg.textContent = error.message;
+    loggingIn = false;
     return;
   }
 
