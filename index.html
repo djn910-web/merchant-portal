@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <title>Merchant Redemption</title>
-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
@@ -32,7 +31,6 @@ button {
   border:none;
 }
 </style>
-
 </head>
 
 <body>
@@ -58,7 +56,7 @@ button {
 <label>Discount Value</label>
 <input id="discountValue" type="number">
 
-<label>Final Bill</label>
+<label>Final Bill (Auto)</label>
 <input id="final" type="number" disabled>
 
 <button id="submitBtn">Submit Redemption</button>
@@ -68,38 +66,48 @@ button {
 </div>
 
 <script>
-
-// =====================
-// JS LOAD TEST
-// =====================
-
-alert("JS LOADED SUCCESSFULLY");
-
-// =====================
-// SUPABASE INIT
-// =====================
-
 const supabase = window.supabase.createClient(
   "https://wyzwjfaiggymxfjkrfuq.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5endqZmFpZ2d5bXhmamtyZnVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDc2MTIsImV4cCI6MjA4NTc4MzYxMn0.oPzAaijIIKls2fUYqPk3cvkegSPN8Iu9h8xnnZkg1JE"
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5endqZmFpZ2d5bXhmamtyZnVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nz02MTIsImV4cCI6MjA4NTc4MzYxMn0.oPzAaijIIKls2fUYqPk3cvkegSPN8Iu9h8xnnZkg1JE"
 );
 
-// =====================
-// BUTTON TEST LISTENERS
-// =====================
+let MERCHANT_ID = null;
 
-document.getElementById("logoutBtn").addEventListener("click", () => {
-  alert("Logout button works");
+// -------- Load Session + Merchant --------
+async function loadSession() {
+
+  const { data } = await supabase.auth.getSession();
+
+  if (!data.session) {
+    window.location.href = "./login.html";
+    return;
+  }
+
+  const userId = data.session.user.id;
+
+  const { data: merchant } = await supabase
+    .from("merchants")
+    .select("id")
+    .eq("auth_user_id", userId)
+    .single();
+
+  if (!merchant) {
+    alert("Merchant not linked");
+    return;
+  }
+
+  MERCHANT_ID = merchant.id;
+}
+
+loadSession();
+
+// -------- Logout --------
+document.getElementById("logoutBtn").addEventListener("click", async () => {
+  await supabase.auth.signOut();
+  window.location.href = "./login.html";
 });
 
-document.getElementById("submitBtn").addEventListener("click", () => {
-  alert("Submit button works");
-});
-
-// =====================
-// FINAL BILL CALC TEST
-// =====================
-
+// -------- Final Bill Calc --------
 function calculateFinal() {
 
   const original = Number(document.getElementById("original").value);
@@ -125,6 +133,47 @@ document.getElementById("original").addEventListener("input", calculateFinal);
 document.getElementById("discountValue").addEventListener("input", calculateFinal);
 document.getElementById("discountType").addEventListener("change", calculateFinal);
 
+// -------- Submit Redemption --------
+document.getElementById("submitBtn").addEventListener("click", async () => {
+
+  const result = document.getElementById("result");
+  result.innerText = "Processing...";
+
+  const memberNumber = document.getElementById("memberNumber").value.trim();
+  const original = Number(document.getElementById("original").value);
+  const finalBill = Number(document.getElementById("final").value);
+
+  const discount = original - finalBill;
+
+  const { data: member } = await supabase
+    .from("members")
+    .select("id")
+    .eq("member_number", memberNumber)
+    .single();
+
+  if (!member) {
+    result.innerText = "Member not found";
+    return;
+  }
+
+  const { data, error } = await supabase.rpc("create_redemption", {
+    p_member_id: member.id,
+    p_merchant_id: MERCHANT_ID,
+    p_original_bill: original,
+    p_discount: discount,
+    p_final_bill: finalBill
+  });
+
+  if (error) {
+    result.innerText = error.message;
+    return;
+  }
+
+  result.innerText =
+    "Points Added: " + data.points_added +
+    " | Balance: " + data.new_balance;
+
+});
 </script>
 
 </body>
