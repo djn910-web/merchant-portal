@@ -1,172 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Merchant Portal</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+body {
+  font-family: Arial;
+  background:#f5f7fb;
+  padding:40px;
+}
+
+.card {
+  max-width:500px;
+  margin:auto;
+  background:white;
+  padding:25px;
+  border-radius:14px;
+}
+
+input {
+  width:100%;
+  padding:12px;
+  margin-top:8px;
+}
+
+button {
+  width:100%;
+  padding:14px;
+  margin-top:16px;
+  background:black;
+  color:white;
+  border:none;
+}
+
+</style>
+
+</head>
+<body>
+
+<div class="card">
+
+<h2>Merchant Redemption</h2>
+
+<button onclick="logout()">Logout</button>
+
+<br><br>
+
+<label>Member Number</label>
+<input id="memberNumber">
+
+<label>Original Bill</label>
+<input id="original" type="number">
+
+<label>Discount Value</label>
+<input id="discountValue" type="number">
+
+<label>Final Bill</label>
+<input id="final" type="number">
+
+<button onclick="submitRedemption()">Submit Redemption</button>
+
+<br><br>
+
+<div id="result"></div>
+
+</div>
+
 <script>
 
-const SUPABASE_URL = "https://wyzwjfaiggymxfjkrfuq.supabase.co";
-
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5endqZmFpZ2d5bXhmamtyZnVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDc2MTIsImV4cCI6MjA4NTc4MzYxMn0.oPzAaijIIKls2fUYqPk3cvkegSPN8Iu9h8xnnZkg1JE";
-
-const supabaseClient = window.supabase.createClient(
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY
+const supabase = window.supabase.createClient(
+  "https://wyzwjfaiggymxfjkrfuq.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5endqZmFpZ2d5bXhmamtyZnVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDc2MTIsImV4cCI6MjA4NTc4MzYxMn0.oPzAaijIIKls2fUYqPk3cvkegSPN8Iu9h8xnnZkg1JE"
 );
 
-/* ================= SESSION SAFE LOAD ================= */
-
 let MERCHANT_ID = null;
-let sessionReady = false;
 
-async function initSession() {
+/* ================= LOAD SESSION ================= */
 
-  try {
+async function loadSession() {
 
-    // Wait for Supabase to restore session from storage
-    await new Promise(r => setTimeout(r, 250));
+  const { data } = await supabase.auth.getSession();
 
-    const { data } = await supabaseClient.auth.getSession();
-
-    if (!data.session) {
-      window.location.href = "./login.html";
-      return;
-    }
-
-    const userId = data.session.user.id;
-
-    const { data: merchant } = await supabaseClient
-      .from("merchants")
-      .select("id")
-      .eq("auth_user_id", userId)
-      .maybeSingle();
-
-    if (!merchant) {
-      alert("Merchant not linked to this login");
-      await supabaseClient.auth.signOut();
-      window.location.href = "./login.html";
-      return;
-    }
-
-    MERCHANT_ID = merchant.id;
-    sessionReady = true;
-
-  } catch (err) {
-    console.error(err);
-    alert("Session load failed. Reload page.");
+  if (!data.session) {
+    window.location.href = "./login.html";
+    return;
   }
 
+  const userId = data.session.user.id;
+
+  const { data: merchant } = await supabase
+    .from("merchants")
+    .select("id")
+    .eq("auth_user_id", userId)
+    .single();
+
+  if (!merchant) {
+    alert("Merchant not linked");
+    return;
+  }
+
+  MERCHANT_ID = merchant.id;
 }
 
-initSession();
+loadSession();
 
-/* ================= IDLE AUTO LOGOUT ================= */
+/* ================= LOGOUT ================= */
 
-let idleTimer;
-
-function resetIdleTimer() {
-  clearTimeout(idleTimer);
-  idleTimer = setTimeout(async () => {
-    alert("Session expired (5 min idle)");
-    await supabaseClient.auth.signOut();
-    window.location.href = "./login.html";
-  }, 5 * 60 * 1000);
-}
-
-["click","mousemove","keypress","touchstart"].forEach(event => {
-  document.addEventListener(event, resetIdleTimer);
-});
-
-resetIdleTimer();
-
-/* ================= LOGOUT BUTTON ================= */
-
-document.getElementById("logoutBtn").addEventListener("click", async () => {
-  await supabaseClient.auth.signOut();
+async function logout() {
+  await supabase.auth.signOut();
   window.location.href = "./login.html";
-});
-
-/* ================= BILL CALC ================= */
-
-function calculateFinal() {
-
-const original = Number(document.getElementById("original").value);
-const discountValue = Number(document.getElementById("discountValue").value);
-const type = document.getElementById("discountType").value;
-
-if (!original || !discountValue) return;
-
-let final;
-
-if (type === "percent") {
-  final = original - (original * discountValue / 100);
-} else {
-  final = original - discountValue;
 }
 
-if (final < 0) final = 0;
+/* ================= SUBMIT ================= */
 
-document.getElementById("final").value = final.toFixed(2);
-}
+async function submitRedemption() {
 
-document.getElementById("original").addEventListener("input", calculateFinal);
-document.getElementById("discountValue").addEventListener("input", calculateFinal);
-document.getElementById("discountType").addEventListener("change", calculateFinal);
+  const resultBox = document.getElementById("result");
 
-/* ================= SUBMIT LOCK ================= */
+  resultBox.innerText = "Processing...";
 
-let submitting = false;
+  const memberNumber = document.getElementById("memberNumber").value;
+  const original = Number(document.getElementById("original").value);
+  const discount = Number(document.getElementById("discountValue").value);
+  const finalBill = Number(document.getElementById("final").value);
 
-document.getElementById("submitBtn").addEventListener("click", async () => {
+  const { data: member } = await supabase
+    .from("members")
+    .select("id")
+    .eq("member_number", memberNumber)
+    .single();
 
-if (submitting) return;
-if (!sessionReady) return alert("Session still loading...");
+  if (!member) {
+    resultBox.innerText = "Member not found";
+    return;
+  }
 
-submitting = true;
+  const { data, error } = await supabase.rpc("create_redemption", {
+    p_member_id: member.id,
+    p_merchant_id: MERCHANT_ID,
+    p_original_bill: original,
+    p_discount: discount,
+    p_final_bill: finalBill
+  });
 
-const resultBox = document.getElementById("result");
+  if (error) {
+    resultBox.innerText = error.message;
+    return;
+  }
 
-try {
-
-resultBox.style.display="block";
-resultBox.className="result";
-resultBox.innerText="Processing...";
-
-const memberNumber = document.getElementById("memberNumber").value.trim();
-const original = Number(document.getElementById("original").value);
-const finalBill = Number(document.getElementById("final").value);
-
-if (!memberNumber) throw new Error("Enter member number");
-if (original <= 0) throw new Error("Invalid bill");
-
-const discount = original - finalBill;
-
-const { data: member } = await supabaseClient
-.from("members")
-.select("id")
-.eq("member_number", memberNumber)
-.maybeSingle();
-
-if (!member) throw new Error("Member not found");
-
-const { data, error } = await supabaseClient.rpc("create_redemption", {
- p_member_id: member.id,
- p_merchant_id: MERCHANT_ID,
- p_original_bill: original,
- p_discount: discount,
- p_final_bill: finalBill
-});
-
-if (error) throw error;
-
-resultBox.className="result success";
-resultBox.innerText =
-"Points Added: " + data.points_added +
-" | Balance: " + data.new_balance;
+  resultBox.innerText =
+    "Points Added: " + data.points_added +
+    " | New Balance: " + data.new_balance;
 
 }
-catch(e){
- resultBox.className="result error";
- resultBox.innerText=e.message;
-}
-
-submitting = false;
-
-});
 
 </script>
+
+</body>
+</html>
