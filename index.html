@@ -2,16 +2,12 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Merchant Portal</title>
+<title>Merchant Redemption</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-body {
-  font-family: Arial;
-  background:#f5f7fb;
-  padding:40px;
-}
+body { font-family: Arial; background:#f5f7fb; padding:40px; }
 
 .card {
   max-width:500px;
@@ -21,7 +17,7 @@ body {
   border-radius:14px;
 }
 
-input {
+input, select {
   width:100%;
   padding:12px;
   margin-top:8px;
@@ -35,7 +31,6 @@ button {
   color:white;
   border:none;
 }
-
 </style>
 
 </head>
@@ -45,9 +40,7 @@ button {
 
 <h2>Merchant Redemption</h2>
 
-<button onclick="logout()">Logout</button>
-
-<br><br>
+<button id="logoutBtn">Logout</button>
 
 <label>Member Number</label>
 <input id="memberNumber">
@@ -55,15 +48,19 @@ button {
 <label>Original Bill</label>
 <input id="original" type="number">
 
+<label>Discount Type</label>
+<select id="discountType">
+  <option value="eur">€ Amount</option>
+  <option value="percent">% Percentage</option>
+</select>
+
 <label>Discount Value</label>
 <input id="discountValue" type="number">
 
-<label>Final Bill</label>
-<input id="final" type="number">
+<label>Final Bill (Auto)</label>
+<input id="final" type="number" disabled>
 
-<button onclick="submitRedemption()">Submit Redemption</button>
-
-<br><br>
+<button id="submitBtn">Submit Redemption</button>
 
 <div id="result"></div>
 
@@ -78,7 +75,7 @@ const supabase = window.supabase.createClient(
 
 let MERCHANT_ID = null;
 
-/* ================= LOAD SESSION ================= */
+/* SESSION LOAD */
 
 async function loadSession() {
 
@@ -107,25 +104,52 @@ async function loadSession() {
 
 loadSession();
 
-/* ================= LOGOUT ================= */
+/* LOGOUT */
 
-async function logout() {
+document.getElementById("logoutBtn").addEventListener("click", async () => {
   await supabase.auth.signOut();
   window.location.href = "./login.html";
+});
+
+/* BILL CALC */
+
+function calculateFinal() {
+
+  const original = Number(document.getElementById("original").value);
+  const discountValue = Number(document.getElementById("discountValue").value);
+  const type = document.getElementById("discountType").value;
+
+  if (!original || !discountValue) return;
+
+  let final;
+
+  if (type === "percent") {
+    final = original - (original * discountValue / 100);
+  } else {
+    final = original - discountValue;
+  }
+
+  if (final < 0) final = 0;
+
+  document.getElementById("final").value = final.toFixed(2);
 }
 
-/* ================= SUBMIT ================= */
+document.getElementById("original").addEventListener("input", calculateFinal);
+document.getElementById("discountValue").addEventListener("input", calculateFinal);
+document.getElementById("discountType").addEventListener("change", calculateFinal);
 
-async function submitRedemption() {
+/* SUBMIT */
 
-  const resultBox = document.getElementById("result");
+document.getElementById("submitBtn").addEventListener("click", async () => {
 
-  resultBox.innerText = "Processing...";
+  const result = document.getElementById("result");
+  result.innerText = "Processing...";
 
-  const memberNumber = document.getElementById("memberNumber").value;
+  const memberNumber = document.getElementById("memberNumber").value.trim();
   const original = Number(document.getElementById("original").value);
-  const discount = Number(document.getElementById("discountValue").value);
   const finalBill = Number(document.getElementById("final").value);
+
+  const discount = original - finalBill;
 
   const { data: member } = await supabase
     .from("members")
@@ -134,7 +158,7 @@ async function submitRedemption() {
     .single();
 
   if (!member) {
-    resultBox.innerText = "Member not found";
+    result.innerText = "Member not found";
     return;
   }
 
@@ -147,15 +171,15 @@ async function submitRedemption() {
   });
 
   if (error) {
-    resultBox.innerText = error.message;
+    result.innerText = error.message;
     return;
   }
 
-  resultBox.innerText =
+  result.innerText =
     "Points Added: " + data.points_added +
-    " | New Balance: " + data.new_balance;
+    " | Balance: " + data.new_balance;
 
-}
+});
 
 </script>
 
