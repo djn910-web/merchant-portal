@@ -53,6 +53,10 @@ button {
 .success { background:#e8f8ee; color:#046b3a; }
 .error { background:#ffe5e5; color:#a30000; }
 
+.logout {
+  background:#eee;
+  color:#000;
+}
 </style>
 </head>
 
@@ -61,6 +65,8 @@ button {
 <div class="card">
 
 <h2>Merchant Redemption</h2>
+
+<button class="logout" id="logoutBtn">Logout</button>
 
 <label>Member Number</label>
 <input id="memberNumber">
@@ -93,14 +99,59 @@ const SUPABASE_URL = "https://wyzwjfaiggymxfjkrfuq.supabase.co";
 const SUPABASE_ANON_KEY =
 "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5endqZmFpZ2d5bXhmamtyZnVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDc2MTIsImV4cCI6MjA4NTc4MzYxMn0.oPzAaijIIKls2fUYqPk3cvkegSPN8Iu9h8xnnZkg1JE";
 
-const MERCHANT_ID = "9024936f-5f23-40f2-9d96-8bcb90d6dbb2";
-
 const supabaseClient = window.supabase.createClient(
   SUPABASE_URL,
   SUPABASE_ANON_KEY
 );
 
+let MERCHANT_ID = null;
 const resultBox = document.getElementById("result");
+
+/* =========================
+   LOGIN SESSION CHECK
+========================= */
+
+async function requireMerchantSession() {
+
+  const { data: { session } } = await supabaseClient.auth.getSession();
+
+  if (!session) {
+    window.location.href = "./login.html";
+    return;
+  }
+
+  const userId = session.user.id;
+
+  const { data: merchant, error } = await supabaseClient
+    .from("merchants")
+    .select("id")
+    .eq("auth_user_id", userId)
+    .single();
+
+  if (error || !merchant) {
+    alert("Merchant not linked to login.");
+    await supabaseClient.auth.signOut();
+    window.location.href = "./login.html";
+    return;
+  }
+
+  MERCHANT_ID = merchant.id;
+}
+
+requireMerchantSession();
+
+/* =========================
+   LOGOUT
+========================= */
+
+document.getElementById("logoutBtn").addEventListener("click", async () => {
+  await supabaseClient.auth.signOut();
+  window.location.href = "./login.html";
+});
+
+/* =========================
+   BILL CALCULATION
+========================= */
 
 function calculateFinal() {
 
@@ -121,16 +172,24 @@ if (type === "percent") {
 if (final < 0) final = 0;
 
 document.getElementById("final").value = final.toFixed(2);
-
 }
 
 document.getElementById("original").addEventListener("input", calculateFinal);
 document.getElementById("discountValue").addEventListener("input", calculateFinal);
 document.getElementById("discountType").addEventListener("change", calculateFinal);
 
+/* =========================
+   SUBMIT REDEMPTION
+========================= */
+
 document.getElementById("submitBtn").addEventListener("click", async () => {
 
 try {
+
+if (!MERCHANT_ID) {
+  alert("Merchant session not ready.");
+  return;
+}
 
 resultBox.style.display="block";
 resultBox.className="result";
