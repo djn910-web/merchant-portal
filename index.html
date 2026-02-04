@@ -1,12 +1,18 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Merchant Redemption</title>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-body { font-family: Arial; background:#f5f7fb; padding:40px; }
+body {
+font-family: Arial;
+background:#f5f7fb;
+padding:40px;
+}
 
 .card {
 max-width:500px;
@@ -14,22 +20,39 @@ margin:auto;
 background:white;
 padding:25px;
 border-radius:14px;
+box-shadow:0 10px 30px rgba(0,0,0,0.08);
 }
 
 input, select {
 width:100%;
 padding:12px;
 margin-top:8px;
+border-radius:8px;
+border:1px solid #ddd;
 }
 
 button {
 width:100%;
 padding:14px;
-margin-top:16px;
+margin-top:20px;
+border:none;
+border-radius:10px;
 background:black;
 color:white;
-border:none;
+font-weight:bold;
+cursor:pointer;
 }
+
+.result {
+margin-top:15px;
+padding:12px;
+border-radius:10px;
+display:none;
+}
+
+.success { background:#e8f8ee; color:#046b3a; }
+.error { background:#ffe5e5; color:#a30000; }
+
 </style>
 </head>
 
@@ -44,7 +67,7 @@ border:none;
 <label>Member Number</label>
 <input id="memberNumber">
 
-<label>Original Bill</label>
+<label>Original Bill (€)</label>
 <input id="original" type="number">
 
 <label>Discount Type</label>
@@ -56,29 +79,34 @@ border:none;
 <label>Discount Value</label>
 <input id="discountValue" type="number">
 
-<label>Final Bill (Auto)</label>
+<label>Final Bill (Auto Calculated)</label>
 <input id="final" type="number" disabled>
 
 <button id="submitBtn">Submit Redemption</button>
 
-<div id="result"></div>
+<div id="result" class="result"></div>
 
 </div>
 
 <script>
 
-const supabase = window.supabase.createClient(
-"https://wyzwjfaiggymxfjkrfuq.supabase.co",
-"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5endqZmFpZ2d5bXhmamtyZnVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDc2MTIsImV4cCI6MjA4NTc4MzYxMn0.oPzAaijIIKls2fUYqPk3cvkegSPN8Iu9h8xnnZkg1JE"
+const SUPABASE_URL = "https://wyzwjfaiggymxfjkrfuq.supabase.co";
+
+const SUPABASE_ANON_KEY =
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5endqZmFpZ2d5bXhmamtyZnVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDc2MTIsImV4cCI6MjA4NTc4MzYxMn0.oPzAaijIIKls2fUYqPk3cvkegSPN8Iu9h8xnnZkg1JE";
+
+const supabaseClient = window.supabase.createClient(
+SUPABASE_URL,
+SUPABASE_ANON_KEY
 );
 
 let MERCHANT_ID = null;
 
-/* LOAD SESSION */
+/* SESSION LOAD */
 
 async function loadSession() {
 
-const { data } = await supabase.auth.getSession();
+const { data } = await supabaseClient.auth.getSession();
 
 if (!data.session) {
 window.location.href = "./login.html";
@@ -87,7 +115,7 @@ return;
 
 const userId = data.session.user.id;
 
-const { data: merchant } = await supabase
+const { data: merchant } = await supabaseClient
 .from("merchants")
 .select("id")
 .eq("auth_user_id", userId)
@@ -107,11 +135,11 @@ loadSession();
 /* LOGOUT */
 
 document.getElementById("logoutBtn").addEventListener("click", async () => {
-await supabase.auth.signOut();
+await supabaseClient.auth.signOut();
 window.location.href = "./login.html";
 });
 
-/* CALCULATE FINAL */
+/* BILL CALC */
 
 function calculateFinal() {
 
@@ -143,27 +171,30 @@ document.getElementById("discountType").addEventListener("change", calculateFina
 
 document.getElementById("submitBtn").addEventListener("click", async () => {
 
-const result = document.getElementById("result");
-result.innerText = "Processing...";
+const resultBox = document.getElementById("result");
 
-const memberNumber = document.getElementById("memberNumber").value.trim();
+resultBox.style.display="block";
+resultBox.className="result";
+resultBox.innerText="Processing...";
+
+const memberNumber = document.getElementById("memberNumber").value;
 const original = Number(document.getElementById("original").value);
 const finalBill = Number(document.getElementById("final").value);
-
 const discount = original - finalBill;
 
-const { data: member } = await supabase
+const { data: member } = await supabaseClient
 .from("members")
 .select("id")
 .eq("member_number", memberNumber)
 .single();
 
 if (!member) {
-result.innerText = "Member not found";
+resultBox.className="result error";
+resultBox.innerText="Member not found";
 return;
 }
 
-const { data, error } = await supabase.rpc("create_redemption", {
+const { data, error } = await supabaseClient.rpc("create_redemption", {
 p_member_id: member.id,
 p_merchant_id: MERCHANT_ID,
 p_original_bill: original,
@@ -172,13 +203,15 @@ p_final_bill: finalBill
 });
 
 if (error) {
-result.innerText = error.message;
+resultBox.className="result error";
+resultBox.innerText=error.message;
 return;
 }
 
-result.innerText =
+resultBox.className="result success";
+resultBox.innerText =
 "Points Added: " + data.points_added +
-" | Balance: " + data.new_balance;
+" | New Balance: " + data.new_balance;
 
 });
 
