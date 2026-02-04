@@ -1,6 +1,7 @@
 <script>
 
 const SUPABASE_URL = "https://wyzwjfaiggymxfjkrfuq.supabase.co";
+
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5endqZmFpZ2d5bXhmamtyZnVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDc2MTIsImV4cCI6MjA4NTc4MzYxMn0.oPzAaijIIKls2fUYqPk3cvkegSPN8Iu9h8xnnZkg1JE";
 
 const supabaseClient = window.supabase.createClient(
@@ -8,61 +9,53 @@ const supabaseClient = window.supabase.createClient(
   SUPABASE_ANON_KEY
 );
 
-/* ================= SESSION + MERCHANT CHECK ================= */
+/* ================= SESSION SAFE LOAD ================= */
 
 let MERCHANT_ID = null;
 let sessionReady = false;
 
-async function requireMerchantSession() {
+async function initSession() {
 
-  console.log("Checking session...");
+  try {
 
-  // Wait for Supabase to restore session from storage
-  await new Promise(resolve => setTimeout(resolve, 300));
+    // Wait for Supabase to restore session from storage
+    await new Promise(r => setTimeout(r, 250));
 
-  const { data: { session } } = await supabaseClient.auth.getSession();
+    const { data } = await supabaseClient.auth.getSession();
 
-  console.log("Session:", session);
+    if (!data.session) {
+      window.location.href = "./login.html";
+      return;
+    }
 
-  if (!session) {
-    window.location.href = "./login.html";
-    return;
+    const userId = data.session.user.id;
+
+    const { data: merchant } = await supabaseClient
+      .from("merchants")
+      .select("id")
+      .eq("auth_user_id", userId)
+      .maybeSingle();
+
+    if (!merchant) {
+      alert("Merchant not linked to this login");
+      await supabaseClient.auth.signOut();
+      window.location.href = "./login.html";
+      return;
+    }
+
+    MERCHANT_ID = merchant.id;
+    sessionReady = true;
+
+  } catch (err) {
+    console.error(err);
+    alert("Session load failed. Reload page.");
   }
 
-  const userId = session.user.id;
-
-  console.log("Looking up merchant for user:", userId);
-
-  const { data: merchant, error } = await supabaseClient
-    .from("merchants")
-    .select("id")
-    .eq("auth_user_id", userId)
-    .maybeSingle();   // SAFER than single()
-
-  console.log("Merchant lookup result:", merchant, error);
-
-  if (!merchant) {
-    alert("Merchant not linked to this login");
-    await supabaseClient.auth.signOut();
-    window.location.href = "./login.html";
-    return;
-  }
-
-  MERCHANT_ID = merchant.id;
-  sessionReady = true;
-
-  console.log("Merchant session ready:", MERCHANT_ID);
 }
 
-requireMerchantSession();
+initSession();
 
-/* Listen for auth state changes (extra safety) */
-
-supabaseClient.auth.onAuthStateChange((event, session) => {
-  console.log("Auth state changed:", event);
-});
-
-/* ================= AUTO LOGOUT AFTER 5 MIN IDLE ================= */
+/* ================= IDLE AUTO LOGOUT ================= */
 
 let idleTimer;
 
