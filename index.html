@@ -9,26 +9,26 @@
 body { font-family: Arial; background:#f5f7fb; padding:40px; }
 
 .card {
-  max-width:500px;
-  margin:auto;
-  background:white;
-  padding:25px;
-  border-radius:14px;
+max-width:500px;
+margin:auto;
+background:white;
+padding:25px;
+border-radius:14px;
 }
 
 input, select {
-  width:100%;
-  padding:12px;
-  margin-top:8px;
+width:100%;
+padding:12px;
+margin-top:8px;
 }
 
 button {
-  width:100%;
-  padding:14px;
-  margin-top:16px;
-  background:black;
-  color:white;
-  border:none;
+width:100%;
+padding:14px;
+margin-top:16px;
+background:black;
+color:white;
+border:none;
 }
 </style>
 </head>
@@ -49,8 +49,8 @@ button {
 
 <label>Discount Type</label>
 <select id="discountType">
-  <option value="eur">€ Amount</option>
-  <option value="percent">% Percentage</option>
+<option value="eur">€ Amount</option>
+<option value="percent">% Percentage</option>
 </select>
 
 <label>Discount Value</label>
@@ -66,114 +66,122 @@ button {
 </div>
 
 <script>
+
 const supabase = window.supabase.createClient(
-  "https://wyzwjfaiggymxfjkrfuq.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5endqZmFpZ2d5bXhmamtyZnVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nz02MTIsImV4cCI6MjA4NTc4MzYxMn0.oPzAaijIIKls2fUYqPk3cvkegSPN8Iu9h8xnnZkg1JE"
+"https://wyzwjfaiggymxfjkrfuq.supabase.co",
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5endqZmFpZ2d5bXhmamtyZnVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDc2MTIsImV4cCI6MjA4NTc4MzYxMn0.oPzAaijIIKls2fUYqPk3cvkegSPN8Iu9h8xnnZkg1JE"
 );
 
 let MERCHANT_ID = null;
 
-// -------- Load Session + Merchant --------
+/* LOAD SESSION */
+
 async function loadSession() {
 
-  const { data } = await supabase.auth.getSession();
+const { data } = await supabase.auth.getSession();
 
-  if (!data.session) {
-    window.location.href = "./login.html";
-    return;
-  }
+if (!data.session) {
+window.location.href = "./login.html";
+return;
+}
 
-  const userId = data.session.user.id;
+const userId = data.session.user.id;
 
-  const { data: merchant } = await supabase
-    .from("merchants")
-    .select("id")
-    .eq("auth_user_id", userId)
-    .single();
+const { data: merchant } = await supabase
+.from("merchants")
+.select("id")
+.eq("auth_user_id", userId)
+.single();
 
-  if (!merchant) {
-    alert("Merchant not linked");
-    return;
-  }
+if (!merchant) {
+alert("Merchant not linked");
+return;
+}
 
-  MERCHANT_ID = merchant.id;
+MERCHANT_ID = merchant.id;
+
 }
 
 loadSession();
 
-// -------- Logout --------
+/* LOGOUT */
+
 document.getElementById("logoutBtn").addEventListener("click", async () => {
-  await supabase.auth.signOut();
-  window.location.href = "./login.html";
+await supabase.auth.signOut();
+window.location.href = "./login.html";
 });
 
-// -------- Final Bill Calc --------
+/* CALCULATE FINAL */
+
 function calculateFinal() {
 
-  const original = Number(document.getElementById("original").value);
-  const discountValue = Number(document.getElementById("discountValue").value);
-  const type = document.getElementById("discountType").value;
+const original = Number(document.getElementById("original").value);
+const discountValue = Number(document.getElementById("discountValue").value);
+const type = document.getElementById("discountType").value;
 
-  if (!original || !discountValue) return;
+if (!original || !discountValue) return;
 
-  let final;
+let final;
 
-  if (type === "percent") {
-    final = original - (original * discountValue / 100);
-  } else {
-    final = original - discountValue;
-  }
+if (type === "percent") {
+final = original - (original * discountValue / 100);
+} else {
+final = original - discountValue;
+}
 
-  if (final < 0) final = 0;
+if (final < 0) final = 0;
 
-  document.getElementById("final").value = final.toFixed(2);
+document.getElementById("final").value = final.toFixed(2);
+
 }
 
 document.getElementById("original").addEventListener("input", calculateFinal);
 document.getElementById("discountValue").addEventListener("input", calculateFinal);
 document.getElementById("discountType").addEventListener("change", calculateFinal);
 
-// -------- Submit Redemption --------
+/* SUBMIT */
+
 document.getElementById("submitBtn").addEventListener("click", async () => {
 
-  const result = document.getElementById("result");
-  result.innerText = "Processing...";
+const result = document.getElementById("result");
+result.innerText = "Processing...";
 
-  const memberNumber = document.getElementById("memberNumber").value.trim();
-  const original = Number(document.getElementById("original").value);
-  const finalBill = Number(document.getElementById("final").value);
+const memberNumber = document.getElementById("memberNumber").value.trim();
+const original = Number(document.getElementById("original").value);
+const finalBill = Number(document.getElementById("final").value);
 
-  const discount = original - finalBill;
+const discount = original - finalBill;
 
-  const { data: member } = await supabase
-    .from("members")
-    .select("id")
-    .eq("member_number", memberNumber)
-    .single();
+const { data: member } = await supabase
+.from("members")
+.select("id")
+.eq("member_number", memberNumber)
+.single();
 
-  if (!member) {
-    result.innerText = "Member not found";
-    return;
-  }
+if (!member) {
+result.innerText = "Member not found";
+return;
+}
 
-  const { data, error } = await supabase.rpc("create_redemption", {
-    p_member_id: member.id,
-    p_merchant_id: MERCHANT_ID,
-    p_original_bill: original,
-    p_discount: discount,
-    p_final_bill: finalBill
-  });
+const { data, error } = await supabase.rpc("create_redemption", {
+p_member_id: member.id,
+p_merchant_id: MERCHANT_ID,
+p_original_bill: original,
+p_discount: discount,
+p_final_bill: finalBill
+});
 
-  if (error) {
-    result.innerText = error.message;
-    return;
-  }
+if (error) {
+result.innerText = error.message;
+return;
+}
 
-  result.innerText =
-    "Points Added: " + data.points_added +
-    " | Balance: " + data.new_balance;
+result.innerText =
+"Points Added: " + data.points_added +
+" | Balance: " + data.new_balance;
 
 });
+
 </script>
 
 </body>
